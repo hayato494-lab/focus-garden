@@ -14,40 +14,52 @@ function saveData(data) {
 }
 
 // ── Constants ──
-const TREES = [
+const TREES_FREE = [
   { emoji: "🌱", name: "わかば", color: "#86efac" },
   { emoji: "🌿", name: "みどり", color: "#4ade80" },
   { emoji: "🪴", name: "こかぶ", color: "#22c55e" },
   { emoji: "🌳", name: "おおき", color: "#16a34a" },
   { emoji: "🌲", name: "もみの木", color: "#15803d" },
   { emoji: "🎄", name: "きらめき", color: "#fbbf24" },
-  { emoji: "🌸", name: "さくら", color: "#f472b6" },
   { emoji: "🍎", name: "りんご", color: "#ef4444" },
   { emoji: "🌻", name: "ひまわり", color: "#eab308" },
+  { emoji: "🌸", name: "さくら", color: "#f472b6" },
   { emoji: "🎋", name: "たなばた", color: "#06b6d4" },
 ];
+const TREES_PREMIUM = [
+  { emoji: "🌸", name: "桜", color: "#f472b6" },
+  { emoji: "🍎", name: "りんご木", color: "#ef4444" },
+  { emoji: "🌻", name: "ひまわり畑", color: "#fbbf24" },
+  { emoji: "🎋", name: "七夕竹", color: "#06b6d4" },
+  { emoji: "🌈", name: "虹の木", color: "#a855f7" },
+];
+const TREES = [...TREES_FREE, ...TREES_PREMIUM];
 const PRESETS = [
   { label: "15分", minutes: 15, desc: "ショート" },
   { label: "25分", minutes: 25, desc: "標準" },
   { label: "45分", minutes: 45, desc: "ロング" },
   { label: "60分", minutes: 60, desc: "ディープ" },
 ];
-const SOUNDS = [
-  { id: "none", label: "なし", icon: "🔇" },
-  { id: "rain", label: "雨音", icon: "🌧️" },
-  { id: "fire", label: "焚き火", icon: "🔥" },
-  { id: "wave", label: "波の音", icon: "🌊" },
-  { id: "bird", label: "鳥", icon: "🐦" },
-  { id: "cafe", label: "カフェ", icon: "☕" },
-  { id: "white", label: "ホワイト\nノイズ", icon: "📻" },
+const SOUNDS_FREE = [
+  { id: "none", label: "なし", icon: "🔇", isPremium: false },
+  { id: "rain", label: "雨音", icon: "🌧️", isPremium: false },
+  { id: "fire", label: "焚き火", icon: "🔥", isPremium: false },
+  { id: "white", label: "ホワイト\nノイズ", icon: "📻", isPremium: false },
 ];
+const SOUNDS_PREMIUM = [
+  { id: "wave", label: "波の音", icon: "🌊", isPremium: true },
+  { id: "bird", label: "鳥", icon: "🐦", isPremium: true },
+  { id: "cafe", label: "カフェ", icon: "☕", isPremium: true },
+  { id: "lofi", label: "Lo-Fi", icon: "🎧", isPremium: true },
+];
+const SOUNDS = [...SOUNDS_FREE, ...SOUNDS_PREMIUM];
 const TASK_COLORS = ["#22c55e","#3b82f6","#f59e0b","#ef4444","#a855f7","#ec4899","#06b6d4","#84cc16","#f97316","#6366f1"];
 const QUOTES = [
   "集中は才能ではなく、習慣である。",
   "小さな一歩が、大きな成果を生む。",
   "今この瞬間に全力を注ごう。",
   "静かな時間が、最高のアイデアを育てる。",
-  "深い集中は、心の庭に花を咲かせる。",
+  "深い集中は、心の庭に花を咚かせる。",
   "一つのことに集中する勇気を持とう。",
   "休憩もまた、集中の一部である。",
   "完璧を目指さず、前に進もう。",
@@ -62,6 +74,7 @@ const BREATHING = [
 const DEFAULT_SETTINGS = {
   focusMin: 25, shortBreak: 5, longBreak: 15,
   sessionsBeforeLong: 4, autoCycle: true, dailyGoal: 120, breathingEnabled: true,
+  yuruMode: false, customFocusMin: null,
 };
 
 // ── Audio ──
@@ -95,6 +108,11 @@ function createAmbientSound(type) {
         const cl = Math.random()>0.999?Math.sin(t*4000)*0.15:0;
         vL = (Math.random()*2-1)*0.08+m+cl;
         vR = (Math.random()*2-1)*0.08+m*0.8+cl*0.5;
+      } else if (type === "lofi") {
+        const beat = Math.sin(t*1.5)*0.2;
+        const bass = Math.sin(t*50)*0.15;
+        vL = (Math.random()*2-1)*0.08+beat+bass*0.3;
+        vR = (Math.random()*2-1)*0.08+beat*0.7+bass*0.2;
       } else if (type === "white") {
         vL = (Math.random()*2-1)*0.15;
         vR = (Math.random()*2-1)*0.15;
@@ -103,7 +121,7 @@ function createAmbientSound(type) {
     }
     const src = ctx.createBufferSource(); src.buffer = buf; src.loop = true;
     const flt = ctx.createBiquadFilter(); flt.type = "lowpass";
-    flt.frequency.value = type==="fire"?900:type==="bird"?6000:type==="cafe"?3000:4000;
+    flt.frequency.value = type==="fire"?900:type==="bird"?6000:type==="cafe"?3000:type==="lofi"?2000:4000;
     const gain = ctx.createGain(); gain.gain.value = 0.5;
     src.connect(flt); flt.connect(gain); gain.connect(ctx.destination); src.start();
     return { ctx, src, gain };
@@ -122,6 +140,41 @@ function playChime() {
   } catch {}
 }
 function getTreeForMinutes(m) { return TREES[Math.min(Math.floor(m/8), TREES.length-1)]; }
+
+// ── Modal Components ──
+function PremiumModal({ isOpen, title, message, onClose, onUpgrade }) {
+  if (!isOpen) return null;
+  return (
+    <div style={{
+      position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      zIndex: 1000, backdropFilter: "blur(4px)"
+    }}>
+      <div style={{
+        background: "#1e293b", borderRadius: 20, padding: 24, maxWidth: 320,
+        border: "1px solid rgba(148,163,184,0.12)"
+      }}>
+        <div style={{ fontSize: 28, marginBottom: 12, textAlign: "center" }}>✨</div>
+        <h3 style={{ fontSize: 16, fontWeight: 700, color: "#e2e8f0", marginBottom: 10, textAlign: "center" }}>
+          {title}
+        </h3>
+        <p style={{ fontSize: 13, color: "#94a3b8", marginBottom: 20, textAlign: "center", lineHeight: 1.6 }}>
+          {message}
+        </p>
+        <div style={{ display: "flex", gap: 10 }}>
+          <button onClick={onClose} style={{
+            flex: 1, padding: "11px 16px", borderRadius: 12, fontSize: 13, fontWeight: 600,
+            background: "rgba(30,41,59,0.8)", color: "#cbd5e1", border: "1px solid rgba(148,163,184,0.1)"
+          }}>キャンセル</button>
+          <button onClick={onUpgrade} style={{
+            flex: 1, padding: "11px 16px", borderRadius: 12, fontSize: 13, fontWeight: 600,
+            background: "linear-gradient(135deg, #22c55e, #16a34a)", color: "#fff", border: "none"
+          }}>アップグレード</button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ── Sub-Components ──
 function BreathingExercise() {
@@ -247,7 +300,7 @@ function GardenView({sessions}) {
   );
 }
 
-function StatsView({sessions,streak}) {
+function StatsView({sessions,streak,isPremium}) {
   const totalMin = sessions.reduce((a,s)=>a+s.minutes,0);
   const today = new Date().toDateString();
   const todayMins = sessions.filter(s=>new Date(s.date).toDateString()===today).reduce((a,s)=>a+s.minutes,0);
@@ -297,26 +350,49 @@ function StatsView({sessions,streak}) {
                 transition:"height 0.3s"}}/>
               <div style={{fontSize:10,marginTop:5,fontWeight:d.isToday?700:400,color:d.isToday?"#22c55e":"#94a3b8"}}>{d.day}</div>
             </div>
-          ))}
-        </div>
+          ))}</div>
       </div>
-      <div style={{background:"rgba(30,41,59,0.6)",borderRadius:16,padding:16,border:"1px solid rgba(148,163,184,0.08)"}}>
-        <div style={{fontSize:13,fontWeight:700,color:"#e2e8f0",marginBottom:12}}>🗓️ 28日間ヒートマップ</div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:4}}>
-          {heat.map((d,i)=>{
-            const int=d.mins/heatMax;
-            const bg=d.mins===0?"rgba(148,163,184,0.08)":`rgba(34,197,94,${0.2+int*0.8})`;
-            return <div key={i} title={`${d.date.toLocaleDateString("ja-JP")}:${d.mins}分`}
-              style={{aspectRatio:"1",borderRadius:4,background:bg,display:"flex",alignItems:"center",justifyContent:"center",
-                fontSize:8,color:d.mins>0?"#fff":"transparent"}}>{d.mins>0?d.mins:""}</div>;
-          })}
+      {isPremium ? (
+        <>
+          <div style={{background:"rgba(30,41,59,0.6)",borderRadius:16,padding:16,border:"1px solid rgba(148,163,184,0.08)"}}>
+            <div style={{fontSize:13,fontWeight:700,color:"#e2e8f0",marginBottom:12}}>🗓️ 28日間ヒートマッブ</div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:4}}>
+              {heat.map((d,i)=>{
+                const int=d.mins/heatMax;
+                const bg=d.mins===0?"rgba(148,163,184,0.08)":`rgba(34,197,94,${0.2+int*0.8})`;
+                return <div key={i} title={`${d.date.toLocaleDateString("ja-JP")}:${d.mins}分`}
+                  style={{aspectRatio:"1",borderRadius:4,background:bg,display:"flex",alignItems:"center",justifyContent:"center",
+                    fontSize:8,color:d.mins>0?"#fff":"transparent"}}>{d.mins>0?d.mins:""}</div>;
+              })}
+            </div>
+            <div style={{display:"flex",justifyContent:"flex-end",gap:4,marginTop:6,alignItems:"center"}}>
+              <span style={{fontSize:9,color:"#64748b"}}>少</span>
+              {[0.1,0.3,0.6,1].map((v,i)=><div key={i} style={{width:12,height:12,borderRadius:2,background:`rgba(34,197,94,${0.15+v*0.85})`}}/>)}
+              <span style={{fontSize:9,color:"#64748b"}}>多</span>
+            </div>
+          </div>
+        </>
+      ) : (
+        <div style={{background:"rgba(30,41,59,0.6)",borderRadius:16,padding:16,border:"1px solid rgba(148,163,184,0.08)",
+          position:"relative",overflow:"hidden"}}>
+          <div style={{filter:"blur(5px)",pointerEvents:"none"}}>
+            <div style={{fontSize:13,fontWeight:700,color:"#e2e8f0",marginBottom:12}}>🗓️ 28日間ヒートマッブ</div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:4}}>
+              {heat.slice(0,14).map((d,i)=>{
+                const int=d.mins/heatMax;
+                const bg=d.mins===0?"rgba(148,163,184,0.08)":`rgba(34,197,94,${0.2+int*0.8})`;
+                return <div key={i} style={{aspectRatio:"1",borderRadius:4,background:bg}}></div>;
+              })}
+            </div>
+          </div>
+          <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(12,18,34,0.4)"}}>
+            <div style={{textAlign:"center"}}>
+              <div style={{fontSize:20,marginBottom:6}}>🔒</div>
+              <div style={{fontSize:12,fontWeight:600,color:"#94a3b8"}}>プレミアムで利用可能</div>
+            </div>
+          </div>
         </div>
-        <div style={{display:"flex",justifyContent:"flex-end",gap:4,marginTop:6,alignItems:"center"}}>
-          <span style={{fontSize:9,color:"#64748b"}}>少</span>
-          {[0.1,0.3,0.6,1].map((v,i)=><div key={i} style={{width:12,height:12,borderRadius:2,background:`rgba(34,197,94,${0.15+v*0.85})`}}/>)}
-          <span style={{fontSize:9,color:"#64748b"}}>多</span>
-        </div>
-      </div>
+      )}
       {taskEntries.length>0&&(
         <div style={{background:"rgba(30,41,59,0.6)",borderRadius:16,padding:16,border:"1px solid rgba(148,163,184,0.08)"}}>
           <div style={{fontSize:13,fontWeight:700,color:"#e2e8f0",marginBottom:12}}>📋 タスク別集中時間</div>
@@ -339,7 +415,7 @@ function StatsView({sessions,streak}) {
   );
 }
 
-function SettingsView({settings,setSettings}) {
+function SettingsView({settings,setSettings,isPremium,setIsPremium,onPremiumClick}) {
   const u=(k,v)=>setSettings(p=>({...p,[k]:v}));
   const Row=({label,children})=>(
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 0",borderBottom:"1px solid rgba(148,163,184,0.06)"}}>
@@ -364,6 +440,19 @@ function SettingsView({settings,setSettings}) {
   );
   return (
     <div style={{display:"flex",flexDirection:"column",gap:16}}>
+      {!isPremium && (
+        <div style={{background:"linear-gradient(135deg,rgba(34,197,94,0.1),rgba(34,197,94,0.05))",borderRadius:16,padding:16,
+          border:"1px solid rgba(34,197,94,0.2)",display:"flex",alignItems:"center",gap:12,justifyContent:"space-between"}}>
+          <div>
+            <div style={{fontSize:13,fontWeight:700,color:"#4ade80",marginBottom:2}}>✨ Focus Garden Plus+</div>
+            <div style={{fontSize:11,color:"#94a3b8"}}>月額380円で全機能を利用</div>
+          </div>
+          <button onClick={onPremiumClick} style={{
+            padding:"8px 16px",borderRadius:12,fontSize:12,fontWeight:600,
+            background:"linear-gradient(135deg,#22c55e,#16a34a)",color:"#fff",border:"none",whiteSpace:"nowrap"
+          }}>アップグレード</button>
+        </div>
+      )}
       <div style={{background:"rgba(30,41,59,0.6)",borderRadius:16,padding:16,border:"1px solid rgba(148,163,184,0.08)"}}>
         <div style={{fontSize:14,fontWeight:700,color:"#e2e8f0",marginBottom:4}}>⚙️ タイマー設定</div>
         <Row label="集中時間"><Num value={settings.focusMin} onChange={v=>u("focusMin",v)} min={5} max={120} unit="分"/></Row>
@@ -373,15 +462,26 @@ function SettingsView({settings,setSettings}) {
         <Row label="自動サイクル"><Toggle value={settings.autoCycle} onChange={v=>u("autoCycle",v)}/></Row>
         <Row label="今日の目標"><Num value={settings.dailyGoal} onChange={v=>u("dailyGoal",v)} min={15} max={480} unit="分"/></Row>
         <Row label="呼吸エクササイズ"><Toggle value={settings.breathingEnabled} onChange={v=>u("breathingEnabled",v)}/></Row>
+        {isPremium && (
+          <Row label="ゆるモード"><Toggle value={settings.yuruMode} onChange={v=>u("yuruMode",v)}/></Row>
+        )}
       </div>
+      {isPremium && (
+        <div style={{background:"rgba(30,41,59,0.6)",borderRadius:16,padding:16,border:"1px solid rgba(148,163,184,0.08)"}}>
+          <div style={{fontSize:14,fontWeight:700,color:"#e2e8f0",marginBottom:4}}>🎯 カスタマイズ</div>
+          <Row label="デモ用プレミアム"><Toggle value={isPremium} onChange={setIsPremium}/></Row>
+        </div>
+      )}
       <div style={{background:"rgba(30,41,59,0.6)",borderRadius:16,padding:16,border:"1px solid rgba(148,163,184,0.08)"}}>
         <div style={{fontSize:14,fontWeight:700,color:"#e2e8f0",marginBottom:8}}>ℹ️ Focus Garden について</div>
         <div style={{fontSize:12,color:"#94a3b8",lineHeight:1.8}}>
-          バージョン 1.0.0<br/>
+          バージョン 2.0.0<br/>
           集中して、庭を育てよう。<br/><br/>
-          このアプリは完全無料・広告なしです。<br/>
+          このアプリは完全無料・広告なし。<br/>
           データはお使いのデバイスにのみ保存されます。<br/><br/>
           <a href="/privacy.html" target="_blank" rel="noopener" style={{color:"#60a5fa",textDecoration:"none"}}>プライバシーポリシー</a>
+          {" · "}
+          <a href="#" style={{color:"#60a5fa",textDecoration:"none"}}>レビューを書く</a>
         </div>
       </div>
     </div>
@@ -393,6 +493,9 @@ export default function FocusGarden() {
   const saved = useMemo(()=>loadData(),[]);
   const [tab, setTab] = useState("timer");
   const [settings, setSettings] = useState(saved?.settings || DEFAULT_SETTINGS);
+  const [isPremium, setIsPremium] = useState(saved?.isPremium || false);
+  const [startTime, setStartTime] = useState(null);
+  const [pausedTime, setPausedTime] = useState(null);
   const [remaining, setRemaining] = useState((saved?.settings?.focusMin || 25)*60);
   const [isActive, setIsActive] = useState(false);
   const [isBreak, setIsBreak] = useState(false);
@@ -401,16 +504,19 @@ export default function FocusGarden() {
   const [taskName, setTaskName] = useState("");
   const [cycleCount, setCycleCount] = useState(0);
   const [quote, setQuote] = useState(()=>QUOTES[Math.floor(Math.random()*QUOTES.length)]);
+  const [showPremiumModal, setShowPremiumModal] = useState(false);
+  const [premiumFeature, setPremiumFeature] = useState("");
+  const [showExtendModal, setShowExtendModal] = useState(false);
   const audioRef = useRef(null);
-  const intervalRef = useRef(null);
+  const animationRef = useRef(null);
 
   // Persist
-  useEffect(()=>{saveData({sessions,settings});},[sessions,settings]);
+  useEffect(()=>{saveData({sessions,settings,isPremium});},[sessions,settings,isPremium]);
 
   const totalSeconds = isBreak
     ? (cycleCount>0&&cycleCount%settings.sessionsBeforeLong===0?settings.longBreak:settings.shortBreak)*60
     : settings.focusMin*60;
-  const progress = Math.max(0, 1-remaining/totalSeconds);
+
   const m = Math.floor(remaining/60), s = remaining%60;
   const timeStr = `${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
 
@@ -433,48 +539,97 @@ export default function FocusGarden() {
     if(sid!=="none"){const a=createAmbientSound(sid);if(a)audioRef.current={ctx:a.ctx,src:a.src,gain:a.gain};}
   },[stopAudio]);
 
-  // Timer
+  // Timer with Date.now() for background persistence
   useEffect(()=>{
     if(!isActive)return;
-    intervalRef.current = setInterval(()=>{
-      setRemaining(prev=>{
-        if(prev<=1){
-          clearInterval(intervalRef.current);
-          playChime();
-          if(!isBreak){
-            setSessions(p=>[...p,{minutes:settings.focusMin,date:new Date().toISOString(),task:taskName||""}]);
-            setCycleCount(c=>c+1);
-            setQuote(QUOTES[Math.floor(Math.random()*QUOTES.length)]);
-            if(settings.autoCycle){
-              setIsBreak(true);
-              const next=cycleCount+1;
-              const isLong=next%settings.sessionsBeforeLong===0;
-              return (isLong?settings.longBreak:settings.shortBreak)*60;
-            } else { setIsActive(false);setIsBreak(false);stopAudio();return settings.focusMin*60; }
-          } else {
-            if(settings.autoCycle){setIsBreak(false);return settings.focusMin*60;}
-            else{setIsActive(false);setIsBreak(false);stopAudio();return settings.focusMin*60;}
-          }
+
+    const updateTimer = () => {
+      if(pausedTime!==null) return;
+
+      const now = Date.now();
+      const elapsed = (now - startTime) / 1000;
+      const newRemaining = Math.max(0, Math.round(totalSeconds - elapsed));
+
+      setRemaining(newRemaining);
+
+      if(newRemaining === 0) {
+        playChime();
+        if(!isBreak){
+          setSessions(p=>[...p,{minutes:settings.focusMin,date:new Date().toISOString(),task:taskName||""}]);
+          setCycleCount(c=>c+1);
+          setQuote(QUOTES[Math.floor(Math.random()*QUOTES.length)]);
+          setIsActive(false);
+          setShowExtendModal(true);
+        } else {
+          if(settings.autoCycle){setIsBreak(false);setRemaining(settings.focusMin*60);setStartTime(Date.now());setIsActive(true);}
+          else{setIsActive(false);setIsBreak(false);stopAudio();setRemaining(settings.focusMin*60);}
         }
-        return prev-1;
-      });
-    },1000);
-    return()=>clearInterval(intervalRef.current);
-  },[isActive,isBreak,settings,cycleCount,taskName,stopAudio]);
+      }
+    };
+
+    animationRef.current = setInterval(updateTimer, 100);
+    return()=>clearInterval(animationRef.current);
+  },[isActive,isBreak,settings,cycleCount,taskName,stopAudio,startTime,pausedTime,totalSeconds]);
 
   // Tab title
   useEffect(()=>{
     document.title = isActive ? `${timeStr} - Focus Garden` : "Focus Garden";
   },[timeStr,isActive]);
 
-  const handleStart=()=>{if(!isActive&&sound!=="none")playAudio(sound);setIsActive(true);};
-  const handlePause=()=>{setIsActive(false);stopAudio();};
-  const handleReset=()=>{setIsActive(false);setIsBreak(false);setCycleCount(0);setRemaining(settings.focusMin*60);stopAudio();};
-  const handlePreset=(m)=>{if(!isActive){setSettings(p=>({...p,focusMin:m}));setRemaining(m*60);setIsBreak(false);}};
-  const handleSound=(s)=>{setSound(s);if(isActive){if(s==="none")stopAudio();else playAudio(s);}};
+  const handleStart=()=>{
+    if(!isActive){
+      setStartTime(Date.now());
+      setPausedTime(null);
+      if(sound!=="none")playAudio(sound);
+      setIsActive(true);
+    }
+  };
 
+  const handlePause=()=>{
+    if(isActive){
+      setPausedTime(Date.now());
+      setIsActive(false);
+      stopAudio();
+    }
+  };
+
+  const handleReset=()=>{setIsActive(false);setIsBreak(false);setCycleCount(0);setRemaining(settings.focusMin*60);stopAudio();setStartTime(null);setPausedTime(null);};
+  const handlePreset=(m)=>{if(!isActive){setSettings(p=>({...p,focusMin:m}));setRemaining(m*60);setIsBreak(false);}};
+
+  const handleSound=(s)=>{
+    if(!isPremium && SOUNDS_PREMIUM.some(ps=>ps.id===s)){
+      setPremiumFeature(s);
+      setShowPremiumModal(true);
+      return;
+    }
+    setSound(s);
+    if(isActive){if(s==="none")stopAudio();else playAudio(s);}
+  };
+
+  const progress = Math.max(0, 1-remaining/totalSeconds);
   const isLongBreak = isBreak&&cycleCount>0&&cycleCount%settings.sessionsBeforeLong===0;
   const tabs=[{id:"timer",icon:"⏱️",label:"タイマー"},{id:"garden",icon:"🌳",label:"庭園"},{id:"stats",icon:"📊",label:"統計"},{id:"settings",icon:"⚙️",label:"設定"}];
+
+  const handleExtend = (minutes) => {
+    if(!isPremium) {
+      setPremiumFeature("extend");
+      setShowPremiumModal(true);
+      return;
+    }
+    setRemaining(prev => prev + minutes * 60);
+    setStartTime(Date.now());
+    setIsActive(true);
+    setShowExtendModal(false);
+  };
+
+  const handlePremiumClick = () => {
+    setShowPremiumModal(true);
+  };
+
+  const handleUpgrade = () => {
+    setIsPremium(true);
+    setShowPremiumModal(false);
+  };
 
   return (
     <div style={{minHeight:"100vh",minHeight:"100dvh",background:"linear-gradient(180deg,#0c1222 0%,#162032 40%,#0c1222 100%)",
@@ -489,18 +644,66 @@ export default function FocusGarden() {
         ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:rgba(148,163,184,0.2);border-radius:2px}
       `}</style>
 
+      <PremiumModal
+        isOpen={showPremiumModal}
+        title={premiumFeature==="extend"?"タイマー延長は":"このプレミアム機能は"}
+        message={premiumFeature==="extend"?"プレミアムプランで利用可能です。":"プレミアムプランで利用可能です。"}
+        onClose={() => setShowPremiumModal(false)}
+        onUpgrade={handleUpgrade}
+      />
+
+      {showExtendModal && !isBreak && (
+        <div style={{
+          position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          zIndex: 999, backdropFilter: "blur(4px)"
+        }}>
+          <div style={{
+            background: "#1e293b", borderRadius: 20, padding: 24, maxWidth: 320,
+            border: "1px solid rgba(148,163,184,0.12)"
+          }}>
+            <div style={{ fontSize: 28, marginBottom: 12, textAlign: "center" }}>⏰</div>
+            <h3 style={{ fontSize: 16, fontWeight: 700, color: "#e2e8f0", marginBottom: 10, textAlign: "center" }}>
+              集中を延長する？
+            </h3>
+            <p style={{ fontSize: 13, color: "#94a3b8", marginBottom: 20, textAlign: "center", lineHeight: 1.6 }}>
+              もう少し続けたいですか？
+            </p>
+            <div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
+              <button onClick={() => handleExtend(5)} style={{
+                flex: 1, padding: "11px 16px", borderRadius: 12, fontSize: 13, fontWeight: 600,
+                background: isPremium ? "rgba(34,197,94,0.15)" : "rgba(148,163,184,0.1)",
+                color: isPremium ? "#4ade80" : "#64748b",
+                border: isPremium ? "1px solid rgba(34,197,94,0.25)" : "1px solid rgba(148,163,184,0.1)"
+              }}>+5分</button>
+              <button onClick={() => handleExtend(10)} style={{
+                flex: 1, padding: "11px 16px", borderRadius: 12, fontSize: 13, fontWeight: 600,
+                background: isPremium ? "linear-gradient(135deg, #22c55e, #16a34a)" : "rgba(148,163,184,0.1)",
+                color: isPremium ? "#fff" : "#64748b",
+                border: isPremium ? "none" : "1px solid rgba(148,163,184,0.1)"
+              }}>+10分</button>
+            </div>
+            <button onClick={() => setShowExtendModal(false)} style={{
+              width: "100%", padding: "11px 16px", borderRadius: 12, fontSize: 13, fontWeight: 600,
+              background: "rgba(30,41,59,0.8)", color: "#cbd5e1", border: "1px solid rgba(148,163,184,0.1)"
+            }}>終了</button>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div style={{width:"100%",maxWidth:440,padding:"16px 20px 0",display:"flex",alignItems:"center",justifyContent:"space-between",
         paddingTop:"max(16px, env(safe-area-inset-top))"}}>
         <div>
           <h1 style={{fontSize:20,fontWeight:800,letterSpacing:-0.5,display:"flex",alignItems:"center",gap:6}}>
-            <span style={{fontSize:22}}>🌿</span> Focus Garden
+            <span style={{fontSize:22}}>🌿</span> {isPremium?"Focus Garden Plus+":"Focus Garden"}
           </h1>
           <p style={{fontSize:10,color:"#475569",marginTop:1}}>集中して、庭を育てよう</p>
         </div>
         <div style={{display:"flex",gap:8,alignItems:"center"}}>
           {streak>0&&<div style={{background:"rgba(249,115,22,0.15)",borderRadius:16,padding:"3px 10px",fontSize:11,color:"#fb923c",fontWeight:700}}>🔥 {streak}日</div>}
           <div style={{background:"rgba(34,197,94,0.12)",borderRadius:16,padding:"3px 10px",fontSize:11,color:"#4ade80",fontWeight:700}}>🌳 {sessions.length}</div>
+          {isPremium&&<div style={{background:"rgba(168,85,247,0.15)",borderRadius:16,padding:"3px 10px",fontSize:11,color:"#c084fc",fontWeight:700}}>✨ Pro</div>}
         </div>
       </div>
 
@@ -578,9 +781,11 @@ export default function FocusGarden() {
                   <button key={s.id} onClick={()=>handleSound(s.id)} style={{
                     padding:"5px 10px",borderRadius:12,fontSize:11,fontWeight:500,lineHeight:1.2,textAlign:"center",
                     background:sound===s.id?"rgba(34,197,94,0.15)":"rgba(15,23,42,0.5)",
-                    color:sound===s.id?"#4ade80":"#94a3b8",
-                    border:sound===s.id?"1px solid rgba(34,197,94,0.25)":"1px solid rgba(148,163,184,0.08)"}}>
+                    color:sound===s.id?"#4ade80":s.isPremium&&!isPremium?"#a0aec0":"#94a3b8",
+                    border:sound===s.id?"1px solid rgba(34,197,94,0.25)":"1px solid rgba(148,163,184,0.08)",
+                    position:"relative"}}>
                     {s.icon} {s.label}
+                    {s.isPremium&&!isPremium&&<span style={{fontSize:8,position:"absolute",right:6,top:"50%",transform:"translateY(-50%)"}}>🔒</span>}
                   </button>
                 ))}
               </div>
@@ -588,8 +793,8 @@ export default function FocusGarden() {
           </div>
         )}
         {tab==="garden"&&<GardenView sessions={sessions}/>}
-        {tab==="stats"&&<StatsView sessions={sessions} streak={streak}/>}
-        {tab==="settings"&&<SettingsView settings={settings} setSettings={setSettings}/>}
+        {tab==="stats"&&<StatsView sessions={sessions} streak={streak} isPremium={isPremium}/>}
+        {tab==="settings"&&<SettingsView settings={settings} setSettings={setSettings} isPremium={isPremium} setIsPremium={setIsPremium} onPremiumClick={handlePremiumClick}/>}
       </div>
 
       {/* Bottom Nav */}
@@ -610,4 +815,3 @@ export default function FocusGarden() {
     </div>
   );
 }
-
